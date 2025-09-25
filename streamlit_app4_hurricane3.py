@@ -15,11 +15,22 @@ import geemap.foliumap as geemap
 # ---------------- Earth Engine init ----------------
 def init_ee():
     try:
-        # ee.Initialize(project='sea-level-analysis')  # Original line - requires project access
-        ee.Initialize()  # Modified to use default EE setup
+        # Try to initialize with service account if available
+        if 'earth_engine' in st.secrets:
+            service_account_info = st.secrets['earth_engine']['service_account_key']
+            credentials = ee.ServiceAccountCredentials(None, key_data=service_account_info)
+            ee.Initialize(credentials)
+            st.success("✅ Earth Engine initialized with service account")
+        else:
+            # Fallback to default authentication
+            ee.Initialize()
+            st.success("✅ Earth Engine initialized with default authentication")
     except Exception as e:
-        st.error("Earth Engine failed to initialize. Run `earthengine authenticate` or use a service account.")
-        st.exception(e); raise
+        st.error("❌ Earth Engine failed to initialize. This app requires Earth Engine access.")
+        st.error("**For Streamlit Cloud deployment:** Add Earth Engine service account credentials in app settings.")
+        st.error("**For local development:** Run `earthengine authenticate` in your terminal.")
+        st.stop()  # Stop the app instead of crashing
+
 init_ee()
 
 # ---------------- Constants ----------------
@@ -43,8 +54,9 @@ def get_dem():
     # Use a publicly available DEM dataset instead of private assets
     try:
         return ee.Image("USGS/SRTMGL1_003").select('elevation').rename("elev").toFloat()
-    except Exception:
+    except Exception as e:
         st.warning("⚠️ Using fallback DEM data. Some features may be limited.")
+        st.warning(f"DEM Error: {str(e)}")
         return ee.Image.constant(0.0).toFloat()
 
 @st.cache_resource(show_spinner=False)
